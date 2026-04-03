@@ -72,7 +72,6 @@ def get_official_agents(name: str, personality_prompt: str = "") -> ReActAgent:
             model_name="qwen3:8b",
         ),
         formatter=OllamaChatFormatter(),
-        disable_instruct=True,  # Disable instruction output to hide thinking process
     )
     return agent
 
