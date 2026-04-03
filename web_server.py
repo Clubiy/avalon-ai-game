@@ -39,6 +39,9 @@ class GameWebSocketServer:
             self.player_mode = mode
             self.game_started = True
             
+            # Start game in background
+            asyncio.create_task(self.start_game_logic(mode))
+            
             # Send confirmation to client
             return web.json_response({
                 'success': True,
@@ -50,6 +53,11 @@ class GameWebSocketServer:
                 'success': False,
                 'error': str(e)
             }, status=400)
+    
+    async def start_game_logic(self, mode: str):
+        """Start the actual game logic."""
+        from web_main import create_and_start_game
+        await create_and_start_game(self, mode)
     
     async def websocket_handler(self, request: web.Request) -> web.WebSocketResponse:
         """Handle WebSocket connections."""

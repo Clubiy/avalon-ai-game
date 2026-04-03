@@ -74,7 +74,7 @@ def get_official_agents(name: str, personality_prompt: str = "") -> ReActAgent:
 """,
         model=OllamaChatModel(
             model_name="qwen3:8b",
-            base_url=OLLAMA_BASE_URL,
+            host=OLLAMA_BASE_URL,
         ),
         formatter=OllamaChatFormatter(),
     )

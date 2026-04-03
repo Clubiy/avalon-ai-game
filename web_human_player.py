@@ -8,8 +8,13 @@ from aiohttp import web
 class WebHumanPlayer:
     """Human player that interacts through web interface."""
     
-    def __init__(self, name: str, ws_server):
-        self.name = name
+    def __init__(self, ws_server):
+        """Initialize human player.
+        
+        Args:
+            ws_server: WebSocket server instance
+        """
+        self.name = "H"  # Default name for human player
         self.role: Optional[str] = None
         self.team: Optional[str] = None  # 'good' or 'evil'
         self.ws_server = ws_server

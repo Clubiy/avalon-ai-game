@@ -59,7 +59,8 @@ async def avalon_game(
     agents: list[ReActAgent], 
     personality_assignments: dict,
     human_player: HumanPlayer = None,
-    ai_delay: float = 3.0
+    ai_delay: float = 3.0,
+    ws_server = None,  # WebSocket server for sending messages
 ) -> None:
     """The main entry of the Avalon game
 
@@ -69,6 +70,7 @@ async def avalon_game(
         personality_assignments: Dictionary mapping agent names to personalities
         human_player: Optional human player instance
         ai_delay: Delay in seconds after each AI NPC speaks (default: 3.0s)
+        ws_server: Optional WebSocket server for web interface
     """
     total_players = len(agents) + (1 if human_player else 0)
     assert total_players >= 5 and total_players <= 10, "Avalon needs 5-10 players."
@@ -124,11 +126,17 @@ async def avalon_game(
 
     # Broadcast the game begin message
     async with MsgHub(participants=all_participants) as greeting_hub:
-        await greeting_hub.broadcast(
-            await moderator(
-                Prompts.to_all_new_game.format(names_to_str(all_participants)),
-            ),
+        msg = await moderator(
+            Prompts.to_all_new_game.format(names_to_str(all_participants)),
         )
+        await greeting_hub.broadcast(msg)
+        
+        # Send to WebSocket if available
+        if ws_server:
+            await ws_server.broadcast_public({
+                "type": "game_start",
+                "content": "游戏开始！"
+            })
 
     # Assign roles to all players (AI + human)
     num_players = total_players
@@ -166,14 +174,31 @@ async def avalon_game(
             human_player.role = role
             # Only tell human if they have a special role (Merlin, Percival, Assassin, Morgana, Mordred)
             if role in ["merlin", "percival", "assassin", "morgana", "mordred"]:
+                role_name = human_player.get_role_name(role)
                 await human_player.observe_game(
-                    f"[仅你可见] {human_player.name}，你的角色是 {role}。"
+                    f"[仅你可见] {human_player.name}，你的角色是 {role_name}。"
                 )
+                # Send to WebSocket
+                if ws_server:
+                    await ws_server.broadcast_to_human_only({
+                        "type": "role_reveal_private",
+                        "role": role,
+                        "team": "good" if role in ["merlin", "percival", "loyal"] else "evil",
+                        "content": f"你的角色是 <strong>{role_name}</strong>"
+                    })
             else:
                 # For loyal servants, just give a vague hint
                 await human_player.observe_game(
                     f"[仅你可见] {human_player.name}，你是一个好人阵营的角色。"
                 )
+                # Send to WebSocket
+                if ws_server:
+                    await ws_server.broadcast_to_human_only({
+                        "type": "role_reveal_private",
+                        "role": "loyal",
+                        "team": "good",
+                        "content": "你是一个好人阵营的角色"
+                    })
             players.add_player(participant, role)
 
     # Special role information sharing
