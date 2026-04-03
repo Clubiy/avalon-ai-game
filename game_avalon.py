@@ -466,15 +466,20 @@ async def avalon_game(
                     discussion_content = msg_discussion.metadata.get("response", "")
                     msg_discussion.content = discussion_content
                 
-                # Broadcast to all
-                await alive_players_hub.broadcast(msg_discussion)
+                # Broadcast to all (convert to string to avoid serialization issues)
+                broadcast_msg = {
+                    "name": msg_discussion.name,
+                    "content": msg_discussion.content if hasattr(msg_discussion, 'content') else str(msg_discussion),
+                    "role": "assistant"
+                }
+                await alive_players_hub.broadcast(broadcast_msg)
                 
                 # Send to WebSocket if available
                 if ws_server:
                     await ws_server.broadcast_public({
                         "type": "discussion",
                         "speaker": msg_discussion.name,
-                        "content": msg_discussion.content
+                        "content": msg_discussion.content if hasattr(msg_discussion, 'content') else str(msg_discussion)
                     })
                 
                 # Add delay after AI speaks
