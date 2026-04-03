@@ -90,7 +90,7 @@ async def create_and_start_game(ws_server: GameWebSocketServer, mode: str):
                 # Create human player
                 human_player = WebHumanPlayer(ws_server)
                 ws_server.human_player = human_player
-                ws_server.set_human_player(human_player)
+                # Note: human_player_ws is already set in websocket_handler
         
         # Create AI agents
         num_ai_players = 5 if mode == 'player' else 6
@@ -126,6 +126,7 @@ async def create_and_start_game(ws_server: GameWebSocketServer, mode: str):
 Please role-play and respond according to your personality.
 """,
                 model=OllamaChatModel(
+                    host="192.168.3.127:5500",
                     model_name="qwen3:8b",
                 ),
                 formatter=OllamaChatFormatter(),
