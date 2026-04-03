@@ -2,6 +2,7 @@
 # flake8: noqa: E501
 """The main entry point for the Avalon game."""
 import asyncio
+import logging
 import os
 
 from game_avalon import avalon_game
@@ -11,6 +12,10 @@ from agentscope.formatter import OllamaMultiAgentFormatter
 from agentscope.model import OllamaChatModel
 from agentscope.session import JSONSession
 from personality_loader import assign_personalities_to_agents, get_personality_prompt
+
+# 过滤 AgentScope 和 Ollama 的警告信息
+logging.getLogger("agentscope").setLevel(logging.ERROR)
+logging.getLogger("ollama").setLevel(logging.ERROR)
 
 
 def get_player_letter(i: int) -> str:
