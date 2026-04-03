@@ -274,7 +274,6 @@ async def avalon_game(
             participants=players.current_alive,
             enable_auto_broadcast=False,  # manual broadcast only
             name="alive_players",
-            max_length=50,  # Limit memory to avoid context explosion
         ) as alive_players_hub:
             
             # Leader proposes a quest team
