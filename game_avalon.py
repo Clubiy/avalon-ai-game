@@ -458,11 +458,37 @@ async def avalon_game(
                     ),
                 ),
             )
-            # Open the auto broadcast to enable discussion
-            alive_players_hub.set_auto_broadcast(True)
-            await sequential_pipeline(players.current_alive)
-            # Disable auto broadcast to avoid leaking info
-            alive_players_hub.set_auto_broadcast(False)
+            
+            # Manual discussion loop to support human player and WebSocket
+            for player in players.current_alive:
+                if human_player and player.name == human_player.name:
+                    # Human player discusses via text input
+                    response = await human_player.get_input("请发表你的看法：")
+                    from agentscope.message import Msg
+                    msg_discussion = Msg(player.name, response, role="assistant")
+                else:
+                    # AI player uses model
+                    msg_discussion = await player(
+                        await moderator("Please discuss and share your thoughts."),
+                        structured_model=DiscussionModel,
+                    )
+                    discussion_content = msg_discussion.metadata.get("response", "")
+                    msg_discussion.content = discussion_content
+                
+                # Broadcast to all
+                await alive_players_hub.broadcast(msg_discussion)
+                
+                # Send to WebSocket if available
+                if ws_server:
+                    await ws_server.broadcast_public({
+                        "type": "discussion",
+                        "speaker": msg_discussion.name,
+                        "content": msg_discussion.content
+                    })
+                
+                # Add delay after AI speaks
+                if not (human_player and player.name == human_player.name):
+                    await asyncio.sleep(ai_delay)
 
     # Game over, each player reflects
     await fanout_pipeline(

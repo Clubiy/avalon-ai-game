@@ -38,6 +38,10 @@ class WebHumanPlayer:
         except asyncio.TimeoutError:
             return "我暂时不想发言"
     
+    async def get_input(self, prompt: str = "") -> str:
+        """Alias for wait_for_input to be compatible with game engine."""
+        return await self.wait_for_input(prompt)
+    
     async def submit_input(self, content: str) -> None:
         """Submit input from web interface."""
         await self.input_queue.put(content)
