@@ -8,7 +8,7 @@ import os
 from game_avalon import avalon_game
 
 from agentscope.agent import ReActAgent
-from agentscope.formatter import OllamaMultiAgentFormatter
+from agentscope.formatter import OllamaDialogueFormatter
 from agentscope.model import OllamaChatModel
 from agentscope.session import JSONSession
 from personality_loader import assign_personalities_to_agents, get_personality_prompt
@@ -70,6 +70,7 @@ def get_official_agents(name: str, personality_prompt: str = "") -> ReActAgent:
 """,
         model=OllamaChatModel(
             model_name="qwen3:8b",
+            formatter=OllamaDialogueFormatter(),
         ),
     )
     return agent
