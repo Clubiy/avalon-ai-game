@@ -84,6 +84,9 @@ async def avalon_game(
     # Current quest number (1-5)
     current_quest = 0
     
+    # Quest size for current round
+    quest_size = [2, 3, 4, 3, 4][min(current_quest, 4)]  # Quest sizes for 5 quests
+    
     # Current leader index
     leader_index = 0
 
@@ -179,11 +182,36 @@ async def avalon_game(
                 )
                 # Send to WebSocket
                 if ws_server:
+                    # Determine special vision based on role
+                    special_vision = None
+                    if role == "merlin":
+                        # Merlin sees evil players (except Mordred)
+                        evil_names_for_merlin = [p.name for p in players.evil if players.name_to_role[p.name] != "mordred"]
+                        if evil_names_for_merlin:
+                            special_vision = f"看到邪恶：{', '.join(evil_names_for_merlin)}"
+                    elif role == "percival":
+                        # Percival sees Merlin and Morgana
+                        merlin_name = players.merlin[0].name if players.merlin else "未知"
+                        morgana_name = players.morgana[0].name if players.morgana else "未知"
+                        special_vision = f"看到梅林/莫甘娜：{merlin_name}, {morgana_name}"
+                    elif role == "morgana":
+                        # Morgana sees Merlin and Morgana (to pretend as Merlin)
+                        merlin_name = players.merlin[0].name if players.merlin else "未知"
+                        morgana_name = players.morgana[0].name if players.morgana else "未知"
+                        special_vision = f"看到梅林/莫甘娜：{merlin_name}, {morgana_name}"
+                    elif role == "assassin":
+                        # Assassin sees fellow evil
+                        fellow_evil = [p.name for p in players.evil if p.name != participant.name]
+                        if fellow_evil:
+                            special_vision = f"看到队友：{', '.join(fellow_evil)}"
+                    
                     await ws_server.broadcast_to_human_only({
                         "type": "role_reveal_private",
                         "role": role,
                         "team": "good" if role in ["merlin", "percival", "loyal"] else "evil",
-                        "content": f"你的角色是 <strong>{role_name}</strong>"
+                        "content": f"你的角色是 <strong>{role_name}</strong>",
+                        "special_vision": special_vision,
+                        "quest_team": f"需要 {quest_size} 人"  # Only show size at the beginning
                     })
             else:
                 # For loyal servants, just give a vague hint
@@ -196,7 +224,9 @@ async def avalon_game(
                         "type": "role_reveal_private",
                         "role": "loyal",
                         "team": "good",
-                        "content": "你是一个好人阵营的角色"
+                        "content": "你是一个好人阵营的角色",
+                        "special_vision": None,
+                        "quest_team": f"需要 {quest_size} 人"
                     })
             players.add_player(participant, role)
 
@@ -298,7 +328,7 @@ async def avalon_game(
                         break
             
             # Leader proposes team members
-            quest_size = [2, 3, 4, 3, 4][min(current_quest, 4)]  # Quest sizes for 5 quests
+            # quest_size already defined at the top
             await alive_players_hub.broadcast(
                 await moderator(f"Leader {leader.name} needs to propose {quest_size} players for the quest team."),
             )
@@ -332,6 +362,14 @@ async def avalon_game(
                     await alive_players_hub.broadcast(
                         await moderator(f"{leader.name} proposes the following team: {names_to_str(team_members)}"),
                     )
+                    
+                    # Send quest team announcement to WebSocket
+                    if ws_server:
+                        await ws_server.broadcast_public({
+                            "type": "quest_team_announce",
+                            "content": f"{names_to_str(team_members)}",
+                            "team_members": team_members
+                        })
             
             # All players vote to approve or reject the team
             await alive_players_hub.broadcast(
@@ -348,6 +386,16 @@ async def avalon_game(
                 structured_model=get_yes_no_vote_model(),
                 enable_gather=False,
             )
+            
+            # Send individual NPC vote notifications
+            if ws_server:
+                for msg in msgs_vote:
+                    vote = msg.metadata.get("vote", "NO")
+                    await ws_server.broadcast_public({
+                        "type": "npc_vote",
+                        "speaker": msg.name,
+                        "content": f"{'赞成 ✅' if vote == 'YES' else '反对 ❌'}"
+                    })
             
             yes_votes = sum(1 for msg in msgs_vote if msg.metadata.get("vote") == "YES")
             no_votes = len(msgs_vote) - yes_votes
@@ -439,6 +487,7 @@ async def avalon_game(
             
             # Discussion phase
             current_quest += 1
+            quest_size = [2, 3, 4, 3, 4][min(current_quest, 4)]  # Update quest size for next round
             leader_index = (leader_index + 1) % len(players.current_alive)
             
             await alive_players_hub.broadcast(
@@ -463,7 +512,25 @@ async def avalon_game(
                         structured_model=DiscussionModel,
                     )
                     discussion_content = msg_discussion.metadata.get("response", "")
-                    # Use raw response directly, no tag parsing
+                    # Extract content from <发言：> tag if present
+                    if "<发言：" in discussion_content:
+                        import re
+                        # Try multiple patterns to handle different tag formats
+                        # Pattern 1: <发言：>内容</发言：> (standard)
+                        match = re.search(r'<发言：>(.*?)</发言：>', discussion_content, re.DOTALL)
+                        if match:
+                            discussion_content = match.group(1).strip()
+                        else:
+                            # Pattern 2: <发言：>内容<发言：/> (self-closing style)
+                            match = re.search(r'<发言：>(.*?)<发言：/>', discussion_content, re.DOTALL)
+                            if match:
+                                discussion_content = match.group(1).strip()
+                            else:
+                                # Pattern 3: <发言：>内容 (only opening tag, extract everything after)
+                                match = re.search(r'<发言：>(.*)', discussion_content, re.DOTALL)
+                                if match:
+                                    discussion_content = match.group(1).strip()
+                    # Set the extracted content
                     msg_discussion.content = discussion_content
                 
                 # Broadcast to all (must be Msg object for MsgHub)

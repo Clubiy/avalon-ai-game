@@ -15,7 +15,7 @@ class GameWebSocketServer:
         self.app = web.Application()
         self.app.router.add_get("/", self.index_handler)
         self.app.router.add_get("/ws", self.websocket_handler)
-        self.app.router.add_post("/api/start_game", self.start_game_handler)
+        self.app.router.add_post("/start_game", self.start_game_handler)
         
         # Store connected clients
         self.clients: Set[web.WebSocketResponse] = set()
@@ -206,12 +206,15 @@ class GameWebSocketServer:
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         
         .identity-info {
             display: flex;
-            gap: 20px;
+            gap: 15px;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         .identity-badge {
@@ -237,6 +240,67 @@ class GameWebSocketServer:
         .team-evil {
             background: #f8d7da;
             color: #721c24;
+        }
+        
+        .special-vision {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.95em;
+            display: none;
+        }
+        
+        .special-vision.visible {
+            display: block;
+        }
+        
+        .quest-team-badge {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.95em;
+            display: none;
+        }
+        
+        .quest-team-badge.visible {
+            display: block;
+        }
+        
+        .quest-team-panel {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            padding: 15px 20px;
+            border-bottom: 2px solid #e9ecef;
+            display: none;
+        }
+        
+        .quest-team-panel.visible {
+            display: block;
+        }
+        
+        .quest-team-title {
+            font-weight: bold;
+            color: #d63384;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        
+        .quest-team-members {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .team-member-badge {
+            background: white;
+            padding: 6px 14px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         
         .chat-container {
@@ -464,8 +528,17 @@ class GameWebSocketServer:
             <div class="identity-info">
                 <span class="identity-badge" id="playerRole">玩家：-</span>
                 <span class="team-badge" id="teamBadge">阵营：未知</span>
+                <span class="special-vision" id="specialVision">👁️ 特殊视角：-</span>
+                <span class="quest-team-badge" id="questTeamBadge">🎯 任务队伍：-</span>
             </div>
             <div id="connectionStatus">🔴 未连接</div>
+        </div>
+        
+        <div class="quest-team-panel" id="questTeamPanel">
+            <div class="quest-team-title">⚔️ 当前任务队伍</div>
+            <div class="quest-team-members" id="questTeamMembers">
+                <!-- Team members will be added here -->
+            </div>
         </div>
         
         <div class="chat-container" id="chatContainer">
@@ -508,7 +581,6 @@ class GameWebSocketServer:
         let ws = null;
         let selectedMode = 'player';
         
-        // Select game mode
         function selectMode(mode) {
             selectedMode = mode;
             document.getElementById('modePlayer').classList.remove('selected');
@@ -516,17 +588,12 @@ class GameWebSocketServer:
             document.getElementById('mode' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('selected');
         }
         
-        // Start game
         async function startGame() {
             try {
                 const response = await fetch('/start_game', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        mode: selectedMode
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: selectedMode })
                 });
                 
                 const result = await response.json();
@@ -538,12 +605,10 @@ class GameWebSocketServer:
                     alert('启动失败：' + result.error);
                 }
             } catch (error) {
-                console.error('Error starting game:', error);
                 alert('启动失败：' + error.message);
             }
         }
         
-        // Connect to WebSocket server
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -558,7 +623,7 @@ class GameWebSocketServer:
             ws.onclose = function() {
                 document.getElementById('connectionStatus').innerHTML = '🔴 未连接';
                 addSystemMessage('❌ 与服务器断开连接');
-                setTimeout(connectWebSocket, 3000); // Auto reconnect
+                setTimeout(connectWebSocket, 3000);
             };
             
             ws.onerror = function(error) {
@@ -572,7 +637,6 @@ class GameWebSocketServer:
             };
         }
         
-        // Handle incoming messages
         function handleMessage(message) {
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
@@ -582,46 +646,46 @@ class GameWebSocketServer:
                     messageDiv.className = 'message moderator';
                     messageDiv.textContent = '🎮 游戏开始！';
                     break;
-                    
                 case 'role_reveal_private':
                     messageDiv.className = 'message private';
-                    messageDiv.innerHTML = `<strong>📜 你的身份：</strong>${message.content}`;
-                    updateIdentity(message.role, message.team);
+                    messageDiv.innerHTML = '<strong>📜 你的身份：</strong>' + message.content;
+                    updateIdentity(message.role, message.team, message.special_vision, message.quest_team);
                     break;
-                    
                 case 'role_reveal_public':
                     messageDiv.className = 'message moderator';
                     messageDiv.textContent = message.content;
                     break;
-                    
                 case 'discussion':
                     messageDiv.className = 'message npc';
-                    messageDiv.innerHTML = `
-                        <div class="speaker">${message.speaker}</div>
-                        <div class="content">${message.content}</div>
-                    `;
+                    messageDiv.innerHTML = '<div class="speaker">' + message.speaker + '</div><div class="content">' + message.content + '</div>';
                     break;
-                    
                 case 'vote_result':
                     messageDiv.className = 'message moderator';
-                    messageDiv.textContent = `📊 投票结果：${message.content}`;
+                    messageDiv.textContent = '📊 投票结果：' + message.content;
                     break;
-                    
+                case 'npc_vote':
+                    messageDiv.className = 'message moderator';
+                    messageDiv.innerHTML = '<strong>🗳️ ' + message.speaker + ' 投票：</strong>' + message.content;
+                    break;
+                case 'quest_team_announce':
+                    messageDiv.className = 'message moderator';
+                    messageDiv.textContent = '🎯 任务队伍：' + message.content;
+                    // Update the quest team badge with actual members
+                    updateIdentity(null, null, null, message.team_members);
+                    updateQuestTeam(message.team_members);
+                    break;
                 case 'quest_result':
                     messageDiv.className = 'message moderator';
-                    messageDiv.textContent = `⚔️ 任务结果：${message.content}`;
+                    messageDiv.textContent = '⚔️ 任务结果：' + message.content;
+                    updateQuestTeam(null); // Hide quest team panel
                     break;
-                    
                 case 'game_end':
                     messageDiv.className = 'message moderator';
-                    messageDiv.innerHTML = `<strong>🏆 游戏结束：</strong>${message.content}`;
+                    messageDiv.innerHTML = '<strong>🏆 游戏结束：</strong>' + message.content;
                     break;
-                    
                 case 'input_request':
-                    // Highlight that it's player's turn to speak
                     messageDiv.className = 'message moderator';
-                    messageDiv.innerHTML = `<strong>⏰ 轮到你发言：</strong>${message.prompt || '请发表你的看法：'}`;
-                    // Focus the input field
+                    messageDiv.innerHTML = '<strong>⏰ 轮到你发言：</strong>' + (message.prompt || '请发表你的看法：');
                     const input = document.getElementById('messageInput');
                     if (input) {
                         input.focus();
@@ -630,7 +694,6 @@ class GameWebSocketServer:
                         input.style.boxShadow = '0 0 10px rgba(102, 126, 234, 0.3)';
                     }
                     break;
-                    
                 default:
                     messageDiv.className = 'message moderator';
                     messageDiv.textContent = message.content;
@@ -640,15 +703,54 @@ class GameWebSocketServer:
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
         
-        // Update identity panel
-        function updateIdentity(role, team) {
-            document.getElementById('playerRole').textContent = `角色：${role}`;
+        function updateIdentity(role, team, specialVision = null, questTeamInfo = null) {
+            document.getElementById('playerRole').textContent = '角色：' + role;
             const teamBadge = document.getElementById('teamBadge');
-            teamBadge.textContent = `阵营：${team === 'good' ? '好人 🔵' : '邪恶 🔴'}`;
-            teamBadge.className = `team-badge ${team === 'good' ? 'team-good' : 'team-evil'}`;
+            teamBadge.textContent = '阵营：' + (team === 'good' ? '好人 🔵' : '邪恶 🔴');
+            teamBadge.className = 'team-badge ' + (team === 'good' ? 'team-good' : 'team-evil');
+            
+            // Update special vision if provided
+            if (specialVision) {
+                const visionBadge = document.getElementById('specialVision');
+                visionBadge.textContent = '👁️ 特殊视角：' + specialVision;
+                visionBadge.classList.add('visible');
+            }
+            
+            // Update quest team badge if provided
+            if (questTeamInfo) {
+                const teamBadge = document.getElementById('questTeamBadge');
+                // If questTeamInfo is a string (like "需要 2 人"), use it directly
+                // If it's an array of members, format it
+                if (Array.isArray(questTeamInfo)) {
+                    teamBadge.textContent = '🎯 任务队伍：' + questTeamInfo.join(', ');
+                } else {
+                    teamBadge.textContent = '🎯 任务队伍：' + questTeamInfo;
+                }
+                teamBadge.classList.add('visible');
+            } else {
+                const teamBadge = document.getElementById('questTeamBadge');
+                teamBadge.classList.remove('visible');
+            }
         }
         
-        // Send message to server
+        function updateQuestTeam(members) {
+            const panel = document.getElementById('questTeamPanel');
+            const membersContainer = document.getElementById('questTeamMembers');
+            
+            if (members && members.length > 0) {
+                membersContainer.innerHTML = '';
+                members.forEach(member => {
+                    const badge = document.createElement('span');
+                    badge.className = 'team-member-badge';
+                    badge.textContent = ' ' + member;
+                    membersContainer.appendChild(badge);
+                });
+                panel.classList.add('visible');
+            } else {
+                panel.classList.remove('visible');
+            }
+        }
+        
         function sendMessage() {
             const input = document.getElementById('messageInput');
             const content = input.value.trim();
@@ -659,19 +761,16 @@ class GameWebSocketServer:
                     content: content
                 }));
                 input.value = '';
-                // Reset input style
                 input.style.borderColor = '#ddd';
                 input.style.boxShadow = 'none';
                 input.placeholder = '请输入你的发言...';
             }
         }
         
-        // Clear input
         function clearInput() {
             document.getElementById('messageInput').value = '';
         }
         
-        // Add system message
         function addSystemMessage(text) {
             const chatContainer = document.getElementById('chatContainer');
             const messageDiv = document.createElement('div');
@@ -682,5 +781,4 @@ class GameWebSocketServer:
     </script>
 </body>
 </html>
-'''
 '''

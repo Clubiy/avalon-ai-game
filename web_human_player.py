@@ -48,6 +48,12 @@ class WebHumanPlayer:
     
     async def observe_game(self, message: str) -> None:
         """Display game messages to human player."""
+        # Convert Msg object to string if needed
+        if hasattr(message, 'content'):
+            message = str(message.content)
+        elif not isinstance(message, str):
+            message = str(message)
+        
         await self.ws_server.broadcast_to_human_only({
             "type": "game_message",
             "content": message
@@ -63,7 +69,9 @@ class WebHumanPlayer:
             "type": "role_reveal_private",
             "role": role,
             "team": team,
-            "content": f"你的角色是 <strong>{self.get_role_name(role)}</strong>"
+            "content": f"你的角色是 <strong>{self.get_role_name(role)}</strong>",
+            "special_vision": None,
+            "quest_team": None
         })
     
     def get_role_name(self, role: str) -> str:

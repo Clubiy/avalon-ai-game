@@ -32,7 +32,7 @@ def get_official_agents(names: list, personality_prompt: str = "") -> list:
 Please role-play and respond according to your personality.
 """,
             model=OllamaChatModel(
-                model_name="qwen3:8b",
+                model_name="qwen3.5:9b",
                 host="192.168.3.127:5500"
             ),
             formatter=OllamaChatFormatter(),
@@ -127,7 +127,7 @@ Please role-play and respond according to your personality.
 """,
                 model=OllamaChatModel(
                     host="192.168.3.127:5500",
-                    model_name="qwen3:8b",
+                    model_name="qwen3.5:9b",
                 ),
                 formatter=OllamaChatFormatter(),
             )
