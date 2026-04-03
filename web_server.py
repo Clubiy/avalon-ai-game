@@ -247,6 +247,7 @@ class GameWebSocketServer:
             overflow-y: auto;
             padding: 20px;
             background: #f8f9fa;
+            min-height: 0; /* Important for flex item scrolling */
         }
         
         .message {

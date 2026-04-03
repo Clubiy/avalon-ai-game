@@ -274,6 +274,7 @@ async def avalon_game(
             participants=players.current_alive,
             enable_auto_broadcast=False,  # manual broadcast only
             name="alive_players",
+            max_length=50,  # Limit memory to avoid context explosion
         ) as alive_players_hub:
             
             # Leader proposes a quest team
@@ -466,13 +467,8 @@ async def avalon_game(
                     discussion_content = msg_discussion.metadata.get("response", "")
                     msg_discussion.content = discussion_content
                 
-                # Broadcast to all (convert to string to avoid serialization issues)
-                broadcast_msg = {
-                    "name": msg_discussion.name,
-                    "content": msg_discussion.content if hasattr(msg_discussion, 'content') else str(msg_discussion),
-                    "role": "assistant"
-                }
-                await alive_players_hub.broadcast(broadcast_msg)
+                # Broadcast to all (must be Msg object for MsgHub)
+                await alive_players_hub.broadcast(msg_discussion)
                 
                 # Send to WebSocket if available
                 if ws_server:
