@@ -104,6 +104,12 @@ async def avalon_game(
                 msg = Msg(self.name, response, role="assistant")
                 await self.print(msg)
                 return msg
+            
+            async def observe(self, msg: Msg) -> None:
+                """Human observes messages (displays them)."""
+                # Display the message to human player
+                if hasattr(msg, 'content') and msg.content:
+                    await self.human.observe_game(str(msg.content))
         
         human_agent = HumanAgent(human_player)
         all_participants.append(human_agent)
