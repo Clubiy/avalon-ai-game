@@ -90,18 +90,41 @@ async def create_and_start_game(ws_server: GameWebSocketServer, mode: str):
         num_ai_players = 5 if mode == 'player' else 6
         ai_names = [get_player_letter(i) for i in range(num_ai_players)]
         
-        # Get personality prompts and assign personalities
-        personality_prompt = get_personality_prompt()
-        ai_agents = get_official_agents(
-            names=ai_names,
-            personality_prompt=personality_prompt,
-        )
+        # Create temporary agent objects for personality assignment
+        class TempAgent:
+            def __init__(self, name):
+                self.name = name
+        
+        temp_agents = [TempAgent(name) for name in ai_names]
         
         # Assign personalities
+        from personality_loader import Personality
         personality_assignments = assign_personalities_to_agents(
-            ai_agents,
-            personality_prompt,
+            temp_agents,
+            "./personalities",
+            max_duplicates=2
         )
+        
+        # Create actual agents with personality prompts
+        ai_agents = []
+        for agent_name in ai_names:
+            personality = personality_assignments[agent_name]
+            personality_prompt = get_personality_prompt(personality)
+            
+            print(f"Assigned {personality.mbti_type} - {personality.name} to {agent_name}")
+            
+            agent = ReActAgent(
+                name=agent_name,
+                sys_prompt=f"""You are playing the Avalon game. 
+{personality_prompt}
+Please role-play and respond according to your personality.
+""",
+                model=OllamaChatModel(
+                    model_name="qwen3:8b",
+                ),
+                formatter=OllamaChatFormatter(),
+            )
+            ai_agents.append(agent)
         
         # Start game
         if mode == 'player':
