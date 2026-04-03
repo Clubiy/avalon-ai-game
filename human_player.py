@@ -31,10 +31,20 @@ class HumanPlayer:
             print('='*60)
         
         print(f"\n[{self.name}] 请输入你的发言：")
-        user_input = await asyncio.get_event_loop().run_in_executor(
-            None, input
-        )
-        return user_input.strip()
+        try:
+            user_input = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: input()
+            )
+        except UnicodeDecodeError:
+            # Fallback for encoding issues
+            import sys
+            if sys.version_info >= (3, 10):
+                user_input = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: sys.stdin.readline().strip()
+                )
+            else:
+                user_input = ""
+        return user_input.strip() if user_input else ""
     
     async def get_vote(self, candidates: list, prompt: str = "请选择你要投票的对象：") -> str:
         """Get vote from human player.
