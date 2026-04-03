@@ -285,27 +285,18 @@ async def avalon_game(
             # Evil forces discuss their strategy (if any evil alive)
             evil_alive = [p for p in players.evil if p.name in [a.name for a in players.current_alive]]
             if evil_alive:
-                async with MsgHub(
-                    evil_alive,
-                    enable_auto_broadcast=True,
-                    announcement=await moderator(
-                        Prompts.to_wolves_discussion.format(
-                            names_to_str(evil_alive),
-                            names_to_str(players.current_alive),
-                        ),
-                    ),
-                    name="evil_forces",
-                ) as evil_hub:
-                    # Discussion
-                    n_evil = len(evil_alive)
-                    for round_idx in range(1, MAX_DISCUSSION_ROUND * n_evil + 1):
-                        res = await evil_alive[round_idx % n_evil](
-                            structured_model=DiscussionModel,
-                        )
-                        if round_idx % n_evil == 0 and res.metadata.get(
-                            "reach_agreement",
-                        ):
-                            break
+                # Evil discussion - keep it private, don't show to human
+                # Automatically reach agreement to speed up the game
+                n_evil = len(evil_alive)
+                for round_idx in range(1, min(3, MAX_DISCUSSION_ROUND) * n_evil + 1):
+                    # AI evil players discuss without showing prompts
+                    await evil_alive[round_idx % n_evil](
+                        await moderator("Discuss your strategy."),
+                        structured_model=DiscussionModel,
+                    )
+                    # Always reach agreement quickly
+                    if round_idx >= n_evil:  # After one round per evil player
+                        break
             
             # Leader proposes team members
             quest_size = [2, 3, 4, 3, 4][min(current_quest, 4)]  # Quest sizes for 5 quests
