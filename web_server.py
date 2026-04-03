@@ -245,9 +245,11 @@ class GameWebSocketServer:
         .chat-container {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             padding: 20px;
             background: #f8f9fa;
             min-height: 0; /* Important for flex item scrolling */
+            max-height: calc(100vh - 250px); /* Ensure input area stays visible */
         }
         
         .message {
@@ -286,6 +288,9 @@ class GameWebSocketServer:
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             max-width: 70%;
             line-height: 1.6;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
         }
         
         .message.private {
@@ -629,6 +634,20 @@ class GameWebSocketServer:
                     messageDiv.innerHTML = `<strong>🏆 游戏结束：</strong>${message.content}`;
                     break;
                     
+                case 'input_request':
+                    // Highlight that it's player's turn to speak
+                    messageDiv.className = 'message moderator';
+                    messageDiv.innerHTML = `<strong>⏰ 轮到你发言：</strong>${message.prompt || '请发表你的看法：'}`;
+                    // Focus the input field
+                    const input = document.getElementById('messageInput');
+                    if (input) {
+                        input.focus();
+                        input.placeholder = '请在此输入你的发言...';
+                        input.style.borderColor = '#667eea';
+                        input.style.boxShadow = '0 0 10px rgba(102, 126, 234, 0.3)';
+                    }
+                    break;
+                    
                 default:
                     messageDiv.className = 'message moderator';
                     messageDiv.textContent = message.content;
@@ -657,6 +676,10 @@ class GameWebSocketServer:
                     content: content
                 }));
                 input.value = '';
+                // Reset input style
+                input.style.borderColor = '#ddd';
+                input.style.boxShadow = 'none';
+                input.placeholder = '请输入你的发言...';
             }
         }
         
