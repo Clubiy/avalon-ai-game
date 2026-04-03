@@ -67,6 +67,11 @@ class GameWebSocketServer:
         self.clients.add(ws)
         print(f"Client connected. Total clients: {len(self.clients)}")
         
+        # First client is the human player
+        if self.human_player_ws is None:
+            self.human_player_ws = ws
+            print("✅ Human player WebSocket connection established")
+        
         # Send all previous messages to new client
         for msg in self.game_messages:
             await ws.send_json(msg)
