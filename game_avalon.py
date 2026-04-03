@@ -328,7 +328,7 @@ async def avalon_game(
             msgs_vote = await fanout_pipeline(
                 players.current_alive,
                 await moderator("Vote YES to approve this team, NO to reject."),
-                structured_model=get_vote_model(["YES", "NO"]),
+                structured_model=get_yes_no_vote_model(),
                 enable_gather=False,
             )
             

@@ -27,6 +27,19 @@ def get_vote_model(agents: list[AgentBase]) -> type[BaseModel]:
     return VoteModel
 
 
+def get_yes_no_vote_model() -> type[BaseModel]:
+    """Get a yes/no vote model."""
+
+    class YesNoVoteModel(BaseModel):
+        """Yes or No vote output format."""
+
+        vote: Literal["YES", "NO"] = Field(  # type: ignore
+            description="Vote YES to approve, NO to reject",
+        )
+
+    return YesNoVoteModel
+
+
 class WitchResurrectModel(BaseModel):
     """The output format for witch resurrect action."""
 
