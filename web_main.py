@@ -7,9 +7,37 @@ from aiohttp import web
 from web_server import GameWebSocketServer
 from web_human_player import WebHumanPlayer
 from game_avalon import avalon_game
-from main import get_official_agents, get_player_letter
+# Do not import from main.py as it triggers console input
+# from main import get_official_agents, get_player_letter
 from personality_loader import assign_personalities_to_agents, get_personality_prompt
 from human_player import HumanPlayer
+from agentscope.agent import ReActAgent
+from agentscope.model import OllamaChatModel
+from agentscope.formatter import OllamaChatFormatter
+
+
+def get_player_letter(index: int) -> str:
+    """Get player letter name (A, B, C, ...)."""
+    return chr(ord('A') + index)
+
+
+def get_official_agents(names: list, personality_prompt: str = "") -> list:
+    """Create official agents with Ollama."""
+    agents = []
+    for name in names:
+        agent = ReActAgent(
+            name=name,
+            sys_prompt=f"""You are playing the Avalon game. 
+{personality_prompt}
+Please role-play and respond according to your personality.
+""",
+            model=OllamaChatModel(
+                model_name="qwen3:8b",
+            ),
+            formatter=OllamaChatFormatter(),
+        )
+        agents.append(agent)
+    return agents
 
 
 async def start_web_game(host: str = "0.0.0.0", port: int = 8183):
