@@ -2,6 +2,8 @@
 # pylint: disable=too-many-branches, too-many-statements, no-name-in-module
 """An Avalon game implemented by agentscope."""
 import asyncio
+import re
+
 import numpy as np
 
 from utils import (
@@ -22,11 +24,11 @@ from structured_model import (
 from prompt import (
     ChinesePrompts as Prompts,
 )  # pylint: disable=no-name-in-module
-
 # Uncomment the following line to use English prompts
 # from prompt import EnglishPrompts as Prompts
 
 from human_player import HumanPlayer
+from config import GameConfig, RoleDefs
 
 from agentscope.agent import ReActAgent
 from agentscope.pipeline import (
@@ -72,7 +74,8 @@ async def avalon_game(
         ws_server: Optional WebSocket server for web interface
     """
     total_players = len(agents) + (1 if human_player else 0)
-    assert total_players >= 5 and total_players <= 10, "Avalon needs 5-10 players."
+    assert total_players >= GameConfig.MIN_PLAYERS and total_players <= GameConfig.MAX_PLAYERS, \
+        f"Avalon needs {GameConfig.MIN_PLAYERS}-{GameConfig.MAX_PLAYERS} players."
 
     # Init the players' status
     players = Players()
@@ -84,8 +87,8 @@ async def avalon_game(
     # Current quest number (1-5)
     current_quest = 0
     
-    # Quest size for current round
-    quest_size = [2, 3, 4, 3, 4][min(current_quest, 4)]  # Quest sizes for 5 quests
+    # Quest size for current round - use config for dynamic sizing
+    quest_size = GameConfig.get_quest_size(total_players, current_quest + 1)
     
     # Current leader index
     leader_index = 0
@@ -140,17 +143,9 @@ async def avalon_game(
                 "content": "游戏开始！"
             })
 
-    # Assign roles to all players (AI + human)
+    # Assign roles to all players (AI + human) - use config
     num_players = total_players
-    
-    if num_players <= 6:
-        roles = ["merlin", "percival"] + ["loyal"] * (num_players - 4) + ["assassin", "morgana"]
-    else:
-        # 7+ players: add Mordred and more minions
-        evil_count = num_players // 3  # Approximately 1/3 evil
-        good_count = num_players - evil_count
-        roles = ["merlin", "percival"] + ["loyal"] * (good_count - 2)
-        roles += ["assassin", "morgana", "mordred"] + ["minion"] * (evil_count - 3)
+    roles = GameConfig.get_roles(num_players)
     
     np.random.shuffle(all_participants)
     np.random.shuffle(roles)
@@ -174,44 +169,36 @@ async def avalon_game(
         elif human_player and participant.name == human_player.name:
             # Human player - only show if special role, otherwise keep hidden
             human_player.role = role
-            # Only tell human if they have a special role (Merlin, Percival, Assassin, Morgana, Mordred)
-            if role in ["merlin", "percival", "assassin", "morgana", "mordred"]:
-                role_name = human_player.get_role_name(role)
+            # Only tell human if they have a special role
+            if RoleDefs.is_good(role) or RoleDefs.is_evil(role):
+                role_name = RoleDefs.get_chinese_name(role)
                 await human_player.observe_game(
                     f"[仅你可见] {human_player.name}，你的角色是 {role_name}。"
                 )
+                # Build special vision info based on role
+                special_vision = None
+                if role == "merlin":
+                    evil_for_merlin = [p.name for p in players.evil if players.name_to_role.get(p.name) != "mordred"]
+                    if evil_for_merlin:
+                        special_vision = f"看到邪恶：{', '.join(evil_for_merlin)}"
+                elif role in ["percival", "morgana"]:
+                    merlin_name = players.get_role_list("merlin")[0].name if players.get_role_list("merlin") else "未知"
+                    morgana_name = players.get_role_list("morgana")[0].name if players.get_role_list("morgana") else "未知"
+                    special_vision = f"看到梅林/莫甘娜：{merlin_name}, {morgana_name}"
+                elif role == "assassin":
+                    fellow_evil = [p.name for p in players.evil if p.name != participant.name]
+                    if fellow_evil:
+                        special_vision = f"看到队友：{', '.join(fellow_evil)}"
+                
                 # Send to WebSocket
                 if ws_server:
-                    # Determine special vision based on role
-                    special_vision = None
-                    if role == "merlin":
-                        # Merlin sees evil players (except Mordred)
-                        evil_names_for_merlin = [p.name for p in players.evil if players.name_to_role[p.name] != "mordred"]
-                        if evil_names_for_merlin:
-                            special_vision = f"看到邪恶：{', '.join(evil_names_for_merlin)}"
-                    elif role == "percival":
-                        # Percival sees Merlin and Morgana
-                        merlin_name = players.merlin[0].name if players.merlin else "未知"
-                        morgana_name = players.morgana[0].name if players.morgana else "未知"
-                        special_vision = f"看到梅林/莫甘娜：{merlin_name}, {morgana_name}"
-                    elif role == "morgana":
-                        # Morgana sees Merlin and Morgana (to pretend as Merlin)
-                        merlin_name = players.merlin[0].name if players.merlin else "未知"
-                        morgana_name = players.morgana[0].name if players.morgana else "未知"
-                        special_vision = f"看到梅林/莫甘娜：{merlin_name}, {morgana_name}"
-                    elif role == "assassin":
-                        # Assassin sees fellow evil
-                        fellow_evil = [p.name for p in players.evil if p.name != participant.name]
-                        if fellow_evil:
-                            special_vision = f"看到队友：{', '.join(fellow_evil)}"
-                    
                     await ws_server.broadcast_to_human_only({
                         "type": "role_reveal_private",
                         "role": role,
-                        "team": "good" if role in ["merlin", "percival", "loyal"] else "evil",
+                        "team": "good" if RoleDefs.is_good(role) else "evil",
                         "content": f"你的角色是 <strong>{role_name}</strong>",
                         "special_vision": special_vision,
-                        "quest_team": f"需要 {quest_size} 人"  # Only show size at the beginning
+                        "quest_team": f"需要 {quest_size} 人"
                     })
             else:
                 # For loyal servants, just give a vague hint
@@ -230,10 +217,11 @@ async def avalon_game(
                     })
             players.add_player(participant, role)
 
-    # Special role information sharing
+    # Special role information sharing - use Players.get_role_list()
     # Merlin sees all evil except Mordred
-    merlin_agent = players.merlin[0] if players.merlin else None
-    evil_names_for_merlin = [p.name for p in players.evil if players.name_to_role[p.name] != "mordred"]
+    merlin_agent_list = players.get_role_list("merlin")
+    merlin_agent = merlin_agent_list[0] if merlin_agent_list else None
+    evil_for_merlin = [p for p in players.evil if players.name_to_role.get(p.name) != "mordred"]
     
     if merlin_agent:
         if isinstance(merlin_agent, ReActAgent):
@@ -241,7 +229,7 @@ async def avalon_game(
                 await moderator(
                     Prompts.to_witch_resurrect.format(
                         witch_name=merlin_agent.name,
-                        dead_name=names_to_str(evil_names_for_merlin),
+                        dead_name=names_to_str(evil_for_merlin),
                     ),
                 ),
             )
@@ -249,12 +237,14 @@ async def avalon_game(
         elif human_player and merlin_agent.name == human_player.name:
             await human_player.observe_game(
                 f"[仅你可见] 你是梅林！你可以看到除了莫德雷德之外的所有邪恶势力。"
-                f"\n邪恶玩家有：{', '.join(evil_names_for_merlin)}"
+                f"\n邪恶玩家有：{names_to_str(evil_for_merlin)}"
             )
     
-    # Percival sees Merlin and Morgana (but can't distinguish)
-    percival_agent = players.percival[0] if players.percival else None
-    morgana_agent = players.morgana[0] if players.morgana else None
+    # Percival sees Merlin and Morgana (but can't distinguish) - use Players.get_role_list()
+    percival_agent_list = players.get_role_list("percival")
+    percival_agent = percival_agent_list[0] if percival_agent_list else None
+    morgana_agent_list = players.get_role_list("morgana")
+    morgana_agent = morgana_agent_list[0] if morgana_agent_list else None
     
     if percival_agent and merlin_agent and morgana_agent:
         if isinstance(percival_agent, ReActAgent):
@@ -276,7 +266,7 @@ async def avalon_game(
                 f"[仅你可见] 你是派西维尔！你看到 {merlin_agent.name} 和 {morgana_agent.name} 是梅林或莫甘娜，但无法区分他们。"
             )
     
-    # Evil players know each other
+    # Evil players know each other - use Players.get_role_list()
     if players.evil:
         evil_names = [p.name for p in players.evil]
         for evil_agent in players.evil:
@@ -327,8 +317,8 @@ async def avalon_game(
                     if round_idx >= n_evil:  # After one round per evil player
                         break
             
-            # Leader proposes team members
-            # quest_size already defined at the top
+            # Leader proposes team members - use config for dynamic quest size
+            quest_size = GameConfig.get_quest_size(total_players, current_quest + 1)
             await alive_players_hub.broadcast(
                 await moderator(f"Leader {leader.name} needs to propose {quest_size} players for the quest team."),
             )
@@ -409,8 +399,8 @@ async def avalon_game(
             
             # If team rejected, move to next leader
             if not team_approved:
-                failed_votes = getattr(players, 'failed_votes', 0) + 1
-                if failed_votes >= 5:
+                players.failed_votes += 1
+                if players.failed_votes >= 5:
                     # 5 failed votes means automatic evil win (optional rule)
                     await moderator("5 teams have been rejected. Evil forces win by default!")
                     break
@@ -430,9 +420,9 @@ async def avalon_game(
                 
                 # Good players must vote success
                 # Evil players can choose to fail or succeed
-                if role in ["merlin", "percival", "loyal"]:
+                if RoleDefs.is_good(role):
                     quest_votes.append("success")
-                else:
+                elif RoleDefs.is_evil(role):
                     # Evil player decides
                     msg_evil_vote = await member(
                         await moderator("Vote 'success' or 'fail' for this quest. As evil, you can choose to hide or reveal yourself."),
@@ -440,11 +430,16 @@ async def avalon_game(
                     )
                     quest_votes.append(msg_evil_vote.metadata.get("vote", "success"))
             
-            # Count quest results
+            # Count quest results - use config for fail requirement
             success_count = quest_votes.count("success")
             fail_count = quest_votes.count("fail")
             
-            quest_succeeded = fail_count == 0
+            # 7+ player games require 2 fail votes on 4th/5th quest
+            needs_double_fail = GameConfig.needs_fail_vote(total_players, current_quest + 1)
+            if needs_double_fail:
+                quest_succeeded = fail_count < 2  # Need 2 fails to fail
+            else:
+                quest_succeeded = fail_count == 0
             
             await alive_players_hub.broadcast(
                 await moderator(f"Quest result: {success_count} successes, {fail_count} failures. The quest {'SUCCEEDED' if quest_succeeded else 'FAILED'}."),
@@ -462,8 +457,9 @@ async def avalon_game(
                     await moderator("Good team has completed 3 successful quests! Now comes the final assassination..."),
                 )
                 
-                # Assassin tries to kill Merlin
-                assassin = players.assassin[0] if players.assassin else None
+                # Assassin tries to kill Merlin - use Players.get_role_list()
+                assassin_list = players.get_role_list("assassin")
+                assassin = assassin_list[0] if assassin_list else None
                 if assassin:
                     assassinated = await assassin_stage(assassin, players, merlin_agent.name if merlin_agent else "")
                     await alive_players_hub.broadcast(
@@ -485,9 +481,9 @@ async def avalon_game(
                 await moderator("Evil forces have failed 3 quests! EVIL WINS! 🐺🎉")
                 break
             
-            # Discussion phase
+            # Update quest size for next round using config
             current_quest += 1
-            quest_size = [2, 3, 4, 3, 4][min(current_quest, 4)]  # Update quest size for next round
+            quest_size = GameConfig.get_quest_size(total_players, current_quest + 1)
             leader_index = (leader_index + 1) % len(players.current_alive)
             
             await alive_players_hub.broadcast(
@@ -514,7 +510,6 @@ async def avalon_game(
                     discussion_content = msg_discussion.metadata.get("response", "")
                     # Extract content from <发言：> tag if present
                     if "<发言：" in discussion_content:
-                        import re
                         # Try multiple patterns to handle different tag formats
                         # Pattern 1: <发言：>内容</发言：> (standard)
                         match = re.search(r'<发言：>(.*?)</发言：>', discussion_content, re.DOTALL)
@@ -538,10 +533,11 @@ async def avalon_game(
                 
                 # Send to WebSocket if available
                 if ws_server:
+                    content = msg_discussion.content if hasattr(msg_discussion, 'content') else str(msg_discussion)
                     await ws_server.broadcast_public({
                         "type": "discussion",
                         "speaker": msg_discussion.name,
-                        "content": msg_discussion.content if hasattr(msg_discussion, 'content') else str(msg_discussion)
+                        "content": content
                     })
                 
                 # Add delay after AI speaks

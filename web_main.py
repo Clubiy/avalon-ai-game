@@ -7,42 +7,17 @@ from aiohttp import web
 from web_server import GameWebSocketServer
 from web_human_player import WebHumanPlayer
 from game_avalon import avalon_game
-# Do not import from main.py as it triggers console input
-# from main import get_official_agents, get_player_letter
+from agent_factory import get_player_letter, _build_sys_prompt
 from personality_loader import assign_personalities_to_agents, get_personality_prompt
-from human_player import HumanPlayer
-from agentscope.agent import ReActAgent
-from agentscope.model import OllamaChatModel
-from agentscope.formatter import OllamaChatFormatter
+from config import GameConfig
 
 
-def get_player_letter(index: int) -> str:
-    """Get player letter name (A, B, C, ...)."""
-    return chr(ord('A') + index)
-
-
-def get_official_agents(names: list, personality_prompt: str = "") -> list:
-    """Create official agents with Ollama."""
-    agents = []
-    for name in names:
-        agent = ReActAgent(
-            name=name,
-            sys_prompt=f"""You are playing the Avalon game. 
-{personality_prompt}
-Please role-play and respond according to your personality.
-""",
-            model=OllamaChatModel(
-                model_name="qwen3.5:9b",
-                host="192.168.3.127:5500"
-            ),
-            formatter=OllamaChatFormatter(),
-        )
-        agents.append(agent)
-    return agents
-
-
-async def start_web_game(host: str = "0.0.0.0", port: int = 8183):
+async def start_web_game(host: str = None, port: int = None):
     """Start the Avalon game with web interface."""
+    
+    # Use config defaults if not specified
+    host = host or GameConfig.WEB_HOST
+    port = port or GameConfig.WEB_PORT
     
     # Create WebSocket server
     ws_server = GameWebSocketServer(host, port)
@@ -90,9 +65,8 @@ async def create_and_start_game(ws_server: GameWebSocketServer, mode: str):
                 # Create human player
                 human_player = WebHumanPlayer(ws_server)
                 ws_server.human_player = human_player
-                # Note: human_player_ws is already set in websocket_handler
         
-        # Create AI agents
+        # Create AI agents - use config for player count
         num_ai_players = 5 if mode == 'player' else 6
         ai_names = [get_player_letter(i) for i in range(num_ai_players)]
         
@@ -103,12 +77,12 @@ async def create_and_start_game(ws_server: GameWebSocketServer, mode: str):
         
         temp_agents = [TempAgent(name) for name in ai_names]
         
-        # Assign personalities
+        # Assign personalities - use config for settings
         from personality_loader import Personality
         personality_assignments = assign_personalities_to_agents(
             temp_agents,
-            "./personalities",
-            max_duplicates=2
+            GameConfig.PERSONALITY_DIR,
+            max_duplicates=GameConfig.MAX_PERSONALITY_DUPLICATES
         )
         
         # Create actual agents with personality prompts
@@ -119,27 +93,27 @@ async def create_and_start_game(ws_server: GameWebSocketServer, mode: str):
             
             print(f"Assigned {personality.mbti_type} - {personality.name} to {agent_name}")
             
+            from agentscope.agent import ReActAgent
+            from agentscope.model import OllamaChatModel
+            from agentscope.formatter import OllamaChatFormatter
             agent = ReActAgent(
                 name=agent_name,
-                sys_prompt=f"""You are playing the Avalon game. 
-{personality_prompt}
-Please role-play and respond according to your personality.
-""",
+                sys_prompt=_build_sys_prompt(agent_name, personality_prompt),
                 model=OllamaChatModel(
-                    host="192.168.3.127:5500",
-                    model_name="qwen3.5:9b",
+                    host=GameConfig.OLLAMA_HOST,
+                    model_name=GameConfig.WEB_MODEL,
                 ),
                 formatter=OllamaChatFormatter(),
             )
             ai_agents.append(agent)
         
-        # Start game
+        # Start game - use config for AI delay
         if mode == 'player':
             await avalon_game(
                 agents=ai_agents,
                 personality_assignments=personality_assignments,
                 human_player=human_player,
-                ai_delay=3.0,
+                ai_delay=GameConfig.AI_DELAY,
                 ws_server=ws_server,
             )
         else:
@@ -148,7 +122,7 @@ Please role-play and respond according to your personality.
                 agents=ai_agents,
                 personality_assignments=personality_assignments,
                 human_player=None,
-                ai_delay=3.0,
+                ai_delay=GameConfig.AI_DELAY,
                 ws_server=ws_server,
             )
             
@@ -166,10 +140,10 @@ Please role-play and respond according to your personality.
 
 def main():
     """Main function to start web game."""
-    host = "0.0.0.0"  # Listen on all interfaces
-    port = 8182
+    host = GameConfig.WEB_HOST
+    port = GameConfig.WEB_PORT
     
-    # Parse command line arguments
+    # Parse command line arguments (override config)
     if len(sys.argv) > 1:
         host = sys.argv[1]
     if len(sys.argv) > 2:
