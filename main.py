@@ -12,6 +12,10 @@ from agentscope.formatter import OllamaChatFormatter
 from agentscope.model import OllamaChatModel
 from agentscope.session import JSONSession
 from personality_loader import assign_personalities_to_agents, get_personality_prompt
+import os
+
+# 配置 Ollama 服务地址
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://192.168.3.127:5500")
 
 # 过滤 AgentScope 和 Ollama 的警告信息
 logging.getLogger("agentscope").setLevel(logging.ERROR)
@@ -70,6 +74,7 @@ def get_official_agents(name: str, personality_prompt: str = "") -> ReActAgent:
 """,
         model=OllamaChatModel(
             model_name="qwen3:8b",
+            base_url=OLLAMA_BASE_URL,
         ),
         formatter=OllamaChatFormatter(),
     )
