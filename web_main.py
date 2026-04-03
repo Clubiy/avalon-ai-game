@@ -33,6 +33,7 @@ Please role-play and respond according to your personality.
 """,
             model=OllamaChatModel(
                 model_name="qwen3:8b",
+                host="192.168.3.127:5500"
             ),
             formatter=OllamaChatFormatter(),
         )
@@ -74,8 +75,13 @@ async def create_and_start_game(ws_server: GameWebSocketServer, mode: str):
     try:
         # Wait for human player to connect via WebSocket
         if mode == 'player':
-            # Wait a bit for WebSocket connection
-            await asyncio.sleep(2)
+            # Wait longer for WebSocket connection and game to initialize
+            print("⏳ 等待人类玩家连接...")
+            for i in range(10):  # Wait up to 10 seconds
+                await asyncio.sleep(1)
+                if ws_server.human_player_ws:
+                    print("✅ 人类玩家已连接")
+                    break
             
             if ws_server.human_player_ws is None:
                 print("⚠️ No human player connected, starting spectator mode...")
