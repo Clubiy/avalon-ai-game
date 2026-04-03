@@ -15,17 +15,41 @@ class GameWebSocketServer:
         self.app = web.Application()
         self.app.router.add_get("/", self.index_handler)
         self.app.router.add_get("/ws", self.websocket_handler)
+        self.app.router.add_post("/api/start_game", self.start_game_handler)
         
         # Store connected clients
         self.clients: Set[web.WebSocketResponse] = set()
         self.human_player_ws: Optional[web.WebSocketResponse] = None
         self.human_player = None  # Reference to WebHumanPlayer instance
         self.game_messages: list = []
+        self.game_started = False
+        self.player_mode = None  # 'player' or 'spectator'
         
     async def index_handler(self, request: web.Request) -> web.Response:
         """Serve the main HTML page."""
         html_content = self.get_html_template()
         return web.Response(text=html_content, content_type="text/html")
+    
+    async def start_game_handler(self, request: web.Request) -> web.Response:
+        """Handle game start request."""
+        try:
+            data = await request.json()
+            mode = data.get('mode', 'player')  # 'player' or 'spectator'
+            
+            self.player_mode = mode
+            self.game_started = True
+            
+            # Send confirmation to client
+            return web.json_response({
+                'success': True,
+                'message': f'Game started in {mode} mode',
+                'mode': mode
+            })
+        except Exception as e:
+            return web.json_response({
+                'success': False,
+                'error': str(e)
+            }, status=400)
     
     async def websocket_handler(self, request: web.Request) -> web.WebSocketResponse:
         """Handle WebSocket connections."""
@@ -314,8 +338,68 @@ class GameWebSocketServer:
             background: #5a6268;
         }
         
-        .hidden {
-            display: none;
+        .welcome-panel {
+            padding: 40px;
+            text-align: center;
+            background: white;
+        }
+        
+        .welcome-panel h2 {
+            font-size: 2em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        
+        .welcome-panel p {
+            font-size: 1.2em;
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+        
+        .mode-selection {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .mode-card {
+            padding: 30px;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 300px;
+        }
+        
+        .mode-card:hover {
+            border-color: #667eea;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
+        }
+        
+        .mode-card.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+        
+        .mode-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .mode-card p {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        
+        .start-button-area {
+            margin-top: 30px;
+        }
+        
+        .btn-large {
+            padding: 15px 50px;
+            font-size: 1.2em;
         }
         
         /* Scrollbar styling */
@@ -343,33 +427,118 @@ class GameWebSocketServer:
             <h1>🎭 阿瓦隆游戏</h1>
         </div>
         
-        <div class="identity-panel">
-            <div class="identity-info">
-                <span class="identity-badge" id="playerName">玩家：H</span>
-                <span class="identity-badge" id="playerRole">角色：加载中...</span>
-                <span class="team-badge team-good" id="teamBadge">阵营：好人</span>
+        <!-- Welcome Panel (shown before game starts) -->
+        <div class="welcome-panel" id="welcomePanel">
+            <h2>欢迎来到阿瓦隆游戏！</h2>
+            <p>请选择你的参与方式，然后点击开始按钮</p>
+            
+            <div class="mode-selection">
+                <div class="mode-card" onclick="selectMode('player')" id="playerModeCard">
+                    <h3>🎮 作为玩家加入</h3>
+                    <p>与 AI NPC 一起游戏，体验推理和欺骗的乐趣</p>
+                </div>
+                
+                <div class="mode-card" onclick="selectMode('spectator')" id="spectatorModeCard">
+                    <h3>👁️ 作为旁观者</h3>
+                    <p>观看 AI NPC 之间的精彩对战</p>
+                </div>
             </div>
-            <div id="connectionStatus">🔴 未连接</div>
+            
+            <div class="start-button-area">
+                <button class="btn btn-primary btn-large" onclick="startGame()" id="startButton" disabled>
+                    🚀 开始游戏
+                </button>
+            </div>
         </div>
         
-        <div class="chat-container" id="chatContainer">
-            <!-- Messages will be added here -->
-            <div class="message moderator">
-                欢迎来到阿瓦隆游戏！等待游戏开始...
+        <!-- Game Interface (hidden until game starts) -->
+        <div id="gameInterface" class="hidden" style="display: none;">
+            <div class="identity-panel">
+                <div class="identity-info">
+                    <span class="identity-badge" id="playerName">玩家：H</span>
+                    <span class="identity-badge" id="playerRole">角色：加载中...</span>
+                    <span class="team-badge team-good" id="teamBadge">阵营：好人</span>
+                </div>
+                <div id="connectionStatus">🔴 未连接</div>
             </div>
-        </div>
-        
-        <div class="input-area">
-            <textarea id="messageInput" placeholder="请输入你的发言..." rows="3"></textarea>
-            <div class="button-group">
-                <button class="btn btn-secondary" onclick="clearInput()">清空</button>
-                <button class="btn btn-primary" onclick="sendMessage()">发送</button>
+            
+            <div class="chat-container" id="chatContainer">
+                <!-- Messages will be added here -->
+            </div>
+            
+            <div class="input-area">
+                <textarea id="messageInput" placeholder="请输入你的发言..." rows="3"></textarea>
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="clearInput()">清空</button>
+                    <button class="btn btn-primary" onclick="sendMessage()">发送</button>
+                </div>
             </div>
         </div>
     </div>
     
     <script>
         let ws = null;
+        let selectedMode = null;
+        
+        // Select game mode
+        function selectMode(mode) {
+            selectedMode = mode;
+            
+            // Update UI
+            document.getElementById('playerModeCard').classList.remove('selected');
+            document.getElementById('spectatorModeCard').classList.remove('selected');
+            
+            if (mode === 'player') {
+                document.getElementById('playerModeCard').classList.add('selected');
+            } else {
+                document.getElementById('spectatorModeCard').classList.add('selected');
+            }
+            
+            // Enable start button
+            document.getElementById('startButton').disabled = false;
+        }
+        
+        // Start the game
+        async function startGame() {
+            if (!selectedMode) {
+                alert('请先选择游戏模式！');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/start_game', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ mode: selectedMode })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Hide welcome panel, show game interface
+                    document.getElementById('welcomePanel').style.display = 'none';
+                    document.getElementById('gameInterface').style.display = 'block';
+                    
+                    // Add system message
+                    addSystemMessage(`✅ 游戏已开始！模式：${selectedMode === 'player' ? '玩家' : '旁观者'}`);
+                    
+                    // Notify server via WebSocket
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'game_started',
+                            mode: selectedMode
+                        }));
+                    }
+                } else {
+                    alert('启动失败：' + result.error);
+                }
+            } catch (error) {
+                console.error('Error starting game:', error);
+                alert('启动失败：' + error.message);
+            }
+        }
         
         // Connect to WebSocket server
         function connectWebSocket() {
