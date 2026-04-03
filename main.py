@@ -72,6 +72,7 @@ def get_official_agents(name: str, personality_prompt: str = "") -> ReActAgent:
             model_name="qwen3:8b",
         ),
         formatter=OllamaChatFormatter(),
+        disable_instruct=True,  # Disable instruction output to hide thinking process
     )
     return agent
 
@@ -124,7 +125,9 @@ async def main() -> None:
     human_player = None
     if has_human_player:
         from human_player import create_human_player
-        human_player = await create_human_player("Human")
+        # Use letter name for human player (H for 8th player)
+        human_name = get_player_letter(num_ai_players)  # H if there are 7 AI players
+        human_player = await create_human_player(human_name)
     
     # AI delay setting (seconds)
     ai_delay = 3.0  # Adjust this value as needed

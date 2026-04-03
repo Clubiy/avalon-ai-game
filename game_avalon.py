@@ -99,9 +99,14 @@ async def avalon_game(
                 self.name = human.name
                 self.role = None
             
-            async def reply(self, content: str) -> Msg:
-                """Human types their response."""
-                response = await self.human.get_input(content)
+            async def reply(self, content: str = "", structured_model=None) -> Msg:
+                """Human types their response. Support both normal and structured model modes."""
+                # For structured model (like DiscussionModel), just get text input from human
+                if structured_model:
+                    # Ignore structured model requirement, just get text input
+                    response = await self.human.get_input(content if content else "请发表你的看法：")
+                else:
+                    response = await self.human.get_input(content)
                 msg = Msg(self.name, response, role="assistant")
                 await self.print(msg)
                 return msg
@@ -138,13 +143,13 @@ async def avalon_game(
     np.random.shuffle(all_participants)
     np.random.shuffle(roles)
 
-    # Assign roles to AI agents
+    # Assign roles to AI agents and human player
     ai_idx = 0
     for i, participant in enumerate(all_participants):
         role = roles[i]
         
         if isinstance(participant, ReActAgent):
-            # AI agent
+            # AI agent - show role privately
             await participant.observe(
                 await moderator(
                     f"[{participant.name} ONLY] {participant.name}, your role is {role}.",
@@ -155,11 +160,18 @@ async def avalon_game(
             # Add delay after AI receives information
             await asyncio.sleep(ai_delay)
         elif human_player and participant.name == human_player.name:
-            # Human player
+            # Human player - only show if special role, otherwise keep hidden
             human_player.role = role
-            await human_player.observe_game(
-                f"[仅你可见] {human_player.name}，你的角色是 {role}。"
-            )
+            # Only tell human if they have a special role (Merlin, Percival, Assassin, Morgana, Mordred)
+            if role in ["merlin", "percival", "assassin", "morgana", "mordred"]:
+                await human_player.observe_game(
+                    f"[仅你可见] {human_player.name}，你的角色是 {role}。"
+                )
+            else:
+                # For loyal servants, just give a vague hint
+                await human_player.observe_game(
+                    f"[仅你可见] {human_player.name}，你是一个好人阵营的角色。"
+                )
             players.add_player(participant, role)
 
     # Special role information sharing
