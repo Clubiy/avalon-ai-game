@@ -18,12 +18,13 @@ from structured_model import (
     get_quest_team_model,
 )
 from prompt import (
-    EnglishPrompts as Prompts,
+    ChinesePrompts as Prompts,
 )  # pylint: disable=no-name-in-module
-from human_player import HumanPlayer
 
-# Uncomment the following line to use Chinese prompts
-# from prompt import ChinesePrompts as Prompts
+# Uncomment the following line to use English prompts
+# from prompt import EnglishPrompts as Prompts
+
+from human_player import HumanPlayer
 
 
 from agentscope.agent import ReActAgent
@@ -276,13 +277,29 @@ async def avalon_game(
             # Leader votes for team members
             team_members = None
             while team_members is None:
-                msg_leader_proposal = await leader(
-                    await moderator(f"Propose {quest_size} players (including yourself) for the quest team from: {names_to_str(players.current_alive)}"),
-                    structured_model=get_quest_team_model(players.current_alive, quest_size),
-                )
-                proposed_team = msg_leader_proposal.metadata.get("team", [])
-                if len(proposed_team) == quest_size:
-                    team_members = proposed_team
+                # Handle human leader differently (no structured_model)
+                if human_player and leader.name == human_player.name:
+                    # Human leader proposes team via text input
+                    candidates = [p.name for p in players.current_alive]
+                    team_members = await human_player.get_team_proposal(candidates, quest_size)
+                    # Create a mock message
+                    from agentscope.message import Msg
+                    msg_leader_proposal = Msg(
+                        name=human_player.name,
+                        content=f"I propose the team: {', '.join(team_members)}",
+                        role="assistant"
+                    )
+                else:
+                    # AI leader uses structured model
+                    msg_leader_proposal = await leader(
+                        await moderator(f"Propose {quest_size} players (including yourself) for the quest team from: {names_to_str(players.current_alive)}"),
+                        structured_model=get_quest_team_model(players.current_alive, quest_size),
+                    )
+                    proposed_team = msg_leader_proposal.metadata.get("team", [])
+                    if len(proposed_team) == quest_size:
+                        team_members = proposed_team
+                
+                if team_members:
                     await alive_players_hub.broadcast(
                         await moderator(f"{leader.name} proposes the following team: {names_to_str(team_members)}"),
                     )
