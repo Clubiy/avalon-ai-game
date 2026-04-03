@@ -30,16 +30,18 @@ def names_to_str(agents: list[str] | list[ReActAgent]) -> str:
         return ""
 
     if len(agents) == 1:
-        if isinstance(agents[0], ReActAgent):
+        if hasattr(agents[0], 'name'):
             return agents[0].name
-        return agents[0]
+        return str(agents[0])
 
     names = []
     for agent in agents:
-        if isinstance(agent, ReActAgent):
+        # Handle both ReActAgent and HumanAgent (or any AgentBase subclass)
+        if hasattr(agent, 'name'):
             names.append(agent.name)
         else:
-            names.append(agent)
+            # Fallback for string inputs
+            names.append(str(agent))
     return ", ".join([*names[:-1], "and " + names[-1]])
 
 
