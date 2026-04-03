@@ -171,16 +171,13 @@ class GameWebSocketServer:
             font-family: 'Microsoft YaHei', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
             padding: 20px;
         }
         
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            height: 90vh;
+        .game-area {
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
@@ -248,8 +245,6 @@ class GameWebSocketServer:
             overflow-x: hidden;
             padding: 20px;
             background: #f8f9fa;
-            min-height: 0; /* Important for flex item scrolling */
-            max-height: calc(100vh - 250px); /* Ensure input area stays visible */
         }
         
         .message {
@@ -264,9 +259,10 @@ class GameWebSocketServer:
         
         .message.moderator {
             text-align: center;
-            color: #6c757d;
+            color: #666;
             font-style: italic;
-            margin: 20px 0;
+            padding: 8px;
+            border-bottom: 1px dashed #ddd;
         }
         
         .message.npc {
@@ -299,107 +295,135 @@ class GameWebSocketServer:
             background: #e7f3ff;
         }
         
-        .input-area {
-            border-top: 2px solid #e9ecef;
-            padding: 20px;
+        .input-panel {
             background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
         }
         
-        .input-area textarea {
+        .input-panel h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .input-panel textarea {
+            flex: 1;
             width: 100%;
-            min-height: 80px;
             padding: 15px;
-            border: 2px solid #e9ecef;
+            border: 2px solid #ddd;
             border-radius: 10px;
-            resize: vertical;
-            font-family: inherit;
             font-size: 1em;
-            margin-bottom: 10px;
+            resize: none;
+            font-family: inherit;
+            min-height: 200px;
         }
         
-        .input-area textarea:focus {
+        .input-panel textarea:focus {
             outline: none;
             border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
         }
         
         .button-group {
             display: flex;
             gap: 10px;
-            justify-content: flex-end;
+            margin-top: 15px;
         }
         
         .btn {
-            padding: 10px 25px;
+            flex: 1;
+            padding: 12px 20px;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-size: 1em;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
         }
         
-        .btn-primary {
+        .btn-send {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
         
-        .btn-primary:hover {
+        .btn-send:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
         
-        .btn-secondary {
+        .btn-clear {
             background: #6c757d;
             color: white;
         }
         
-        .btn-secondary:hover {
+        .btn-clear:hover {
             background: #5a6268;
         }
         
-        .welcome-panel {
-            padding: 40px;
+        .status-bar {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #e9ecef;
             text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .start-content {
             background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
         }
         
-        .welcome-panel h2 {
-            font-size: 2em;
+        .start-content h2 {
             color: #667eea;
-            margin-bottom: 20px;
-        }
-        
-        .welcome-panel p {
-            font-size: 1.2em;
-            color: #6c757d;
             margin-bottom: 30px;
+            font-size: 2em;
         }
         
-        .mode-selection {
+        .mode-selector {
             display: flex;
             gap: 20px;
-            justify-content: center;
             margin-bottom: 30px;
         }
         
         .mode-card {
-            padding: 30px;
-            border: 2px solid #e9ecef;
-            border-radius: 15px;
+            flex: 1;
+            padding: 20px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
             cursor: pointer;
             transition: all 0.3s;
-            width: 300px;
         }
         
         .mode-card:hover {
             border-color: #667eea;
             transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.2);
         }
         
         .mode-card.selected {
             border-color: #667eea;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            background: #f0f4ff;
         }
         
         .mode-card h3 {
@@ -408,148 +432,108 @@ class GameWebSocketServer:
         }
         
         .mode-card p {
-            color: #6c757d;
+            color: #666;
             font-size: 0.9em;
         }
         
-        .start-button-area {
-            margin-top: 30px;
-        }
-        
-        .btn-large {
-            padding: 15px 50px;
+        .btn-start {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 10px;
             font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
         }
         
-        /* Scrollbar styling */
-        .chat-container::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        .chat-container::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        
-        .chat-container::-webkit-scrollbar-thumb {
-            background: #667eea;
-            border-radius: 4px;
-        }
-        
-        .chat-container::-webkit-scrollbar-thumb:hover {
-            background: #764ba2;
+        .btn-start:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="game-area">
         <div class="header">
             <h1>🎭 阿瓦隆游戏</h1>
         </div>
         
-        <!-- Welcome Panel (shown before game starts) -->
-        <div class="welcome-panel" id="welcomePanel">
-            <h2>欢迎来到阿瓦隆游戏！</h2>
-            <p>请选择你的参与方式，然后点击开始按钮</p>
-            
-            <div class="mode-selection">
-                <div class="mode-card" onclick="selectMode('player')" id="playerModeCard">
-                    <h3>🎮 作为玩家加入</h3>
-                    <p>与 AI NPC 一起游戏，体验推理和欺骗的乐趣</p>
-                </div>
-                
-                <div class="mode-card" onclick="selectMode('spectator')" id="spectatorModeCard">
-                    <h3>👁️ 作为旁观者</h3>
-                    <p>观看 AI NPC 之间的精彩对战</p>
-                </div>
+        <div class="identity-panel">
+            <div class="identity-info">
+                <span class="identity-badge" id="playerRole">玩家：-</span>
+                <span class="team-badge" id="teamBadge">阵营：未知</span>
             </div>
-            
-            <div class="start-button-area">
-                <button class="btn btn-primary btn-large" onclick="startGame()" id="startButton" disabled>
-                    🚀 开始游戏
-                </button>
-            </div>
+            <div id="connectionStatus">🔴 未连接</div>
         </div>
         
-        <!-- Game Interface (hidden until game starts) -->
-        <div id="gameInterface" class="hidden" style="display: none;">
-            <div class="identity-panel">
-                <div class="identity-info">
-                    <span class="identity-badge" id="playerName">玩家：H</span>
-                    <span class="identity-badge" id="playerRole">角色：加载中...</span>
-                    <span class="team-badge team-good" id="teamBadge">阵营：好人</span>
-                </div>
-                <div id="connectionStatus">🔴 未连接</div>
-            </div>
-            
-            <div class="chat-container" id="chatContainer">
-                <!-- Messages will be added here -->
-            </div>
-            
-            <div class="input-area">
-                <textarea id="messageInput" placeholder="请输入你的发言..." rows="3"></textarea>
-                <div class="button-group">
-                    <button class="btn btn-secondary" onclick="clearInput()">清空</button>
-                    <button class="btn btn-primary" onclick="sendMessage()">发送</button>
-                </div>
-            </div>
+        <div class="chat-container" id="chatContainer">
+            <!-- Messages will be added here -->
         </div>
     </div>
     
+    <div class="input-panel">
+        <h3>💬 发言输入</h3>
+        <textarea id="messageInput" placeholder="请输入你的发言..."></textarea>
+        
+        <div class="button-group">
+            <button class="btn btn-clear" onclick="clearInput()">清空</button>
+            <button class="btn btn-send" onclick="sendMessage()">发送</button>
+        </div>
+        
+        <div class="status-bar">
+            <p>在左侧查看游戏消息，在右侧输入你的发言</p>
+        </div>
+    </div>
+    
+    <div class="start-screen" id="startScreen">
+        <div class="start-content">
+            <h2>🎮 游戏模式</h2>
+            <div class="mode-selector">
+                <div class="mode-card selected" onclick="selectMode('player')" id="modePlayer">
+                    <h3>👤 作为玩家加入</h3>
+                    <p>参与游戏讨论和投票</p>
+                </div>
+                <div class="mode-card" onclick="selectMode('spectator')" id="modeSpectator">
+                    <h3>👁️ 作为旁观者</h3>
+                    <p>观看 AI 之间的对决</p>
+                </div>
+            </div>
+            <button class="btn-start" onclick="startGame()">🚀 开始游戏</button>
+        </div>
+    </div>
+
     <script>
         let ws = null;
-        let selectedMode = null;
+        let selectedMode = 'player';
         
         // Select game mode
         function selectMode(mode) {
             selectedMode = mode;
-            
-            // Update UI
-            document.getElementById('playerModeCard').classList.remove('selected');
-            document.getElementById('spectatorModeCard').classList.remove('selected');
-            
-            if (mode === 'player') {
-                document.getElementById('playerModeCard').classList.add('selected');
-            } else {
-                document.getElementById('spectatorModeCard').classList.add('selected');
-            }
-            
-            // Enable start button
-            document.getElementById('startButton').disabled = false;
+            document.getElementById('modePlayer').classList.remove('selected');
+            document.getElementById('modeSpectator').classList.remove('selected');
+            document.getElementById('mode' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('selected');
         }
         
-        // Start the game
+        // Start game
         async function startGame() {
-            if (!selectedMode) {
-                alert('请先选择游戏模式！');
-                return;
-            }
-            
             try {
-                const response = await fetch('/api/start_game', {
+                const response = await fetch('/start_game', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ mode: selectedMode })
+                    body: JSON.stringify({
+                        mode: selectedMode
+                    })
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Hide welcome panel, show game interface
-                    document.getElementById('welcomePanel').style.display = 'none';
-                    document.getElementById('gameInterface').style.display = 'block';
-                    
-                    // Add system message
-                    addSystemMessage(`✅ 游戏已开始！模式：${selectedMode === 'player' ? '玩家' : '旁观者'}`);
-                    
-                    // Notify server via WebSocket
-                    if (ws && ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({
-                            type: 'game_started',
-                            mode: selectedMode
-                        }));
-                    }
+                    document.getElementById('startScreen').style.display = 'none';
+                    connectWebSocket();
                 } else {
                     alert('启动失败：' + result.error);
                 }
@@ -600,7 +584,6 @@ class GameWebSocketServer:
                     break;
                     
                 case 'role_reveal_private':
-                    // Private role information - only show to human player
                     messageDiv.className = 'message private';
                     messageDiv.innerHTML = `<strong>📜 你的身份：</strong>${message.content}`;
                     updateIdentity(message.role, message.team);
@@ -696,17 +679,8 @@ class GameWebSocketServer:
             messageDiv.textContent = text;
             chatContainer.appendChild(messageDiv);
         }
-        
-        // Enter key to send
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-        
-        // Initialize connection
-        connectWebSocket();
     </script>
 </body>
-</html>'''
+</html>
+'''
+'''

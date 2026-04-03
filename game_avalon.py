@@ -2,7 +2,6 @@
 # pylint: disable=too-many-branches, too-many-statements, no-name-in-module
 """An Avalon game implemented by agentscope."""
 import asyncio
-import re
 import numpy as np
 
 from utils import (
@@ -35,34 +34,6 @@ from agentscope.pipeline import (
     sequential_pipeline,
     fanout_pipeline,
 )
-
-
-def parse_speech_tag(content: str) -> str:
-    """Extract content from <发言：> tag.
-    
-    Args:
-        content: Raw response from model which may contain <发言：> tags
-        
-    Returns:
-        Extracted speech content, or original content if no tag found
-    """
-    # Try to find <发言：>...</ 发言> pattern
-    pattern = r'<发言：>(.*?)</发言>'
-    match = re.search(pattern, content, re.DOTALL)
-    
-    if match:
-        # Return the content inside the tag
-        return match.group(1).strip()
-    
-    # If no closing tag, try to find opening tag and take everything after
-    pattern_open = r'<发言：>(.*)'
-    match_open = re.search(pattern_open, content, re.DOTALL)
-    
-    if match_open:
-        return match_open.group(1).strip()
-    
-    # No tag found, return original content
-    return content
 
 
 moderator = EchoAgent()
@@ -492,10 +463,8 @@ async def avalon_game(
                         structured_model=DiscussionModel,
                     )
                     discussion_content = msg_discussion.metadata.get("response", "")
-                    
-                    # Parse <发言：> tag from response
-                    display_content = parse_speech_tag(discussion_content)
-                    msg_discussion.content = display_content
+                    # Use raw response directly, no tag parsing
+                    msg_discussion.content = discussion_content
                 
                 # Broadcast to all (must be Msg object for MsgHub)
                 await alive_players_hub.broadcast(msg_discussion)
