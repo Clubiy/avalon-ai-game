@@ -6,8 +6,7 @@ from aiohttp import web
 
 from web_server import GameWebSocketServer
 from web_human_player import WebHumanPlayer
-from main import get_official_agents, get_player_letter
-from personality_loader import assign_personalities_to_agents, get_personality_prompt
+# Remove imports that would trigger the console game
 
 
 async def start_web_game(host: str = "0.0.0.0", port: int = 8080):
@@ -42,7 +41,7 @@ async def start_web_game(host: str = "0.0.0.0", port: int = 8080):
 def main():
     """Main function to start web game."""
     host = "0.0.0.0"  # Listen on all interfaces
-    port = 8080
+    port = 8182
     
     # Parse command line arguments
     if len(sys.argv) > 1:
