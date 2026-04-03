@@ -3,7 +3,7 @@
 import asyncio
 import json
 from typing import Set, Optional, Dict, Any
-from aiohttp import web
+from aiohttp import web, WSMsgType
 
 
 class GameWebSocketServer:
