@@ -16,6 +16,7 @@ from structured_model import (
     DiscussionModel,
     get_vote_model,
     get_quest_team_model,
+    get_yes_no_vote_model,
 )
 from prompt import (
     ChinesePrompts as Prompts,
