@@ -17,6 +17,7 @@ from structured_model import (
     get_vote_model,
     get_quest_team_model,
     get_yes_no_vote_model,
+    get_quest_vote_model,
 )
 from prompt import (
     ChinesePrompts as Prompts,
@@ -372,7 +373,7 @@ async def avalon_game(
                     # Evil player decides
                     msg_evil_vote = await member(
                         await moderator("Vote 'success' or 'fail' for this quest. As evil, you can choose to hide or reveal yourself."),
-                        structured_model=get_vote_model(["success", "fail"]),
+                        structured_model=get_quest_vote_model(),
                     )
                     quest_votes.append(msg_evil_vote.metadata.get("vote", "success"))
             

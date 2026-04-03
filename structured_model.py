@@ -40,6 +40,19 @@ def get_yes_no_vote_model() -> type[BaseModel]:
     return YesNoVoteModel
 
 
+def get_quest_vote_model() -> type[BaseModel]:
+    """Get a success/fail vote model for quest execution."""
+
+    class QuestVoteModel(BaseModel):
+        """Quest vote output format."""
+
+        vote: Literal["success", "fail"] = Field(  # type: ignore
+            description="Vote 'success' to support the quest, 'fail' to sabotage (evil only)",
+        )
+
+    return QuestVoteModel
+
+
 class WitchResurrectModel(BaseModel):
     """The output format for witch resurrect action."""
 
